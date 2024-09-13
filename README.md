@@ -24,14 +24,54 @@ The tool allows you to configure the network interface, payload size,
 ethertype, test duration and the target bandwidth. See `--help` for additional
 info.
 
-### Example Run
+Note that the process will likely need elevated permissions. On Linux, it will specifically need the CAP_NET_RAW capability, which needs to be added once per build. As an example:
+
+```
+cargo build && sudo setcap 'cap_net_raw=ep' target/debug/l2perf
+```
+
+Running the program as root also works, but then it can also do things like install kernel modules or wipe your root filesystem. With just the `cap_net_raw` capability, the potential for damage is much more limited.
+
+### Example Run (veth)
+
+First, a little setup:
+
+```
+sudo ip link add type veth
+: optionally, if you prefer to name the interfaces explictly,
+: sudo ip link add dev veth0 type veth peer name veth1
+sudo ip link set dev veth0 up
+sudo ip link set dev veth1 up
+```
+
+For more details, see: https://baturin.org/docs/iproute2/#ip-link-add-veth
+
+Then set up a receiver:
+
+```
+./target/debug/l2perf -i veth1 -r
+```
+
+and start the transmitter:
+
+```
+./target/debug/l2perf -i veth0 -b 10000 $(cat /sys/class/net/veth1/address)
+```
+
+Cleaning up:
+
+```
+sudo ip link del veth0
+```
+
+### Example Run (remote peer)
 
 An example test output from a test with a laptop using Intel 802.11ac WiFi card
 to a receiving Raspberry Pi 4 connected to a WiFi router over Ethernet.
 
 #### Tx Side
 ```
-# ./l2perf  -i wlan0 -t 10 -b 350 dc:a6:32:01:01:01
+$ ./l2perf  -i wlan0 -t 10 -b 350 dc:a6:32:01:01:01
 Sec: 0.00-1.01, Sent: 27938 pkts, Rate: 332.59 Mbps
 Sec: 1.01-2.01, Sent: 30537 pkts, Rate: 366.35 Mbps
 Sec: 2.01-3.01, Sent: 28096 pkts, Rate: 337.15 Mbps
@@ -47,7 +87,7 @@ Sec: 0.00-10.00, Sent: 291534 pkts, Rate: 349.82 Mbps
 
 #### Rx Side
 ```
-# ./l2perf  -i eth0 -r
+$ ./l2perf  -i eth0 -r
 Accepting Ether Type 7380...
 
 New incoming traffic:
